@@ -31,11 +31,6 @@ Planet.prototype.collision = function (ship) {
     ship.posX < this.posX + this.radius &&
     ship.posY < this.posY + this.radius
   ) {
-    ship.posX = 50;
-    ship.posY = ship.canvas.height / 2;
-    ship.dx = 0;
-    ship.dy = 0;
-    ship.angle = 0;
-    //this.audio.play();
+    ship.triggerExplosion(ship.posX, ship.posY);
   }
 };

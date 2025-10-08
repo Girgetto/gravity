@@ -18,12 +18,7 @@ $(document).ready(() => {
   }
 
   function resetSpaceShip() {
-    spaceShip.posX = 50;
-    spaceShip.posY = spaceShip.canvas.height / 2;
-    spaceShip.angle = 0;
-    spaceShip.speed = 0;
-    spaceShip.dx = 0;
-    spaceShip.dy = 0;
+    spaceShip.reset();
   }
 
   function resetGame() {
