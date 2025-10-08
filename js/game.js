@@ -9,21 +9,24 @@ function Game(ctx) {
 }
 
 Game.prototype.firstFrameDraw = function () {
+  const centerX = this.ctx.canvas.width / 2;
+  const centerY = this.ctx.canvas.height / 2;
+
   this.ctx.save();
   this.ctx.beginPath();
-  this.ctx.font = "80px invasion";
   this.ctx.fillStyle = "#fff";
-  this.ctx.fillText(
-    "IRONSPACE",
-    this.ctx.canvas.width / 3 - 50,
-    this.ctx.canvas.height / 2
-  );
+  this.ctx.textAlign = "center";
+  this.ctx.textBaseline = "middle";
+
+  this.ctx.font = "80px invasion";
+  this.ctx.fillText("IRONSPACE", centerX, centerY - 60);
+
   this.ctx.font = "50px invasion";
-  this.ctx.fillText(
-    "PRESS ENTER TO START",
-    this.ctx.canvas.width / 4,
-    this.ctx.canvas.height / 2 + 70
-  );
+  this.ctx.fillText("PRESS ENTER TO START", centerX, centerY + 10);
+
+  this.ctx.font = "30px invasion";
+  this.ctx.fillText("W: THRUST  |  A/D: TURN", centerX, centerY + 70);
+
   this.ctx.closePath();
   this.ctx.restore();
 };
