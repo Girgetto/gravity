@@ -1,4 +1,4 @@
-const G_CONSTANT = 0.0000000667;
+const G_CONSTANT = 0.0000005;
 const map = {};
 const A_KEY = 65;
 const D_KEY = 68;
@@ -26,8 +26,9 @@ function SpaceShip(ctx, canvas) {
   this.isTurningLeft = false;
   this.maxSpeed = 5;
   this.speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
-  this.gravityFormula = (planet, distance) =>
-  (G_CONSTANT * planet.mass) / (distance * distance);
+  // Parameters to control the strength and reach of planetary gravity.
+  this.maxGravityForce = 0.6;
+  this.gravityInfluenceRadius = 350;
   this.baseImage = new Image();
   this.baseImage.src = './img/spaceship.png';
   this.baseImage.onload = () => {
@@ -44,11 +45,20 @@ SpaceShip.prototype.collision = function (planet) {
   if (distance < planet.radius) {
     this.dx = 0;
     this.dy = 0;
-  } else {
-    let force = this.gravityFormula(planet, distance);
+  } else if (distance <= this.gravityInfluenceRadius) {
+    const force = this.gravityFormula(planet, distance);
     this.dx += force * Math.cos(angle);
     this.dy += force * Math.sin(angle);
   }
+};
+
+SpaceShip.prototype.gravityFormula = function (planet, distance) {
+  const safeDistance = Math.max(distance, 1);
+  const gravityForce = (G_CONSTANT * planet.mass) / (safeDistance * safeDistance);
+  const distanceFactor = 1 - Math.min(safeDistance / this.gravityInfluenceRadius, 1);
+  const scaledForce = gravityForce * Math.max(distanceFactor, 0);
+
+  return Math.min(this.maxGravityForce, scaledForce);
 };
 
 SpaceShip.prototype.update = function () {
