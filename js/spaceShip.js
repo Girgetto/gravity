@@ -34,9 +34,21 @@ function SpaceShip(ctx, canvas) {
   this.baseImage.onload = () => {
     this.imageLoaded = true;
   };
+  this.explosion = {
+    active: false,
+    frame: 0,
+    duration: 30,
+    maxRadius: 70,
+    posX: 0,
+    posY: 0,
+  };
 }
 
 SpaceShip.prototype.collision = function (planet) {
+  if (this.explosion.active) {
+    return;
+  }
+
   let diffX = planet.posX - this.posX;
   let diffY = planet.posY - this.posY;
   let distance = Math.sqrt(diffX * diffX + diffY * diffY);
@@ -62,6 +74,16 @@ SpaceShip.prototype.gravityFormula = function (planet, distance) {
 };
 
 SpaceShip.prototype.update = function () {
+  if (this.explosion.active) {
+    this.explosion.frame++;
+
+    if (this.explosion.frame >= this.explosion.duration) {
+      this.reset();
+    }
+
+    return;
+  }
+
   this.posY += this.dy;
   this.posX += this.dx;
   this.angle += this.dAngle;
@@ -70,6 +92,12 @@ SpaceShip.prototype.update = function () {
 
 SpaceShip.prototype.draw = function () {
   this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+  if (this.explosion.active) {
+    this.drawExplosion();
+    return;
+  }
+
   this.ctx.save();
   this.ctx.translate(this.posX, this.posY);
   this.ctx.rotate(this.angle);
@@ -104,6 +132,67 @@ SpaceShip.prototype.draw = function () {
   }
 };
 
+SpaceShip.prototype.drawExplosion = function () {
+  this.ctx.save();
+  this.ctx.translate(this.explosion.posX, this.explosion.posY);
+
+  const progress = this.explosion.frame / this.explosion.duration;
+  const outerRadius = this.explosion.maxRadius * progress;
+  const middleRadius = outerRadius * 0.65;
+  const innerRadius = outerRadius * 0.35;
+
+  this.ctx.globalCompositeOperation = "lighter";
+
+  const layers = [
+    { radius: outerRadius, color: "255, 112, 67", alpha: 0.4 },
+    { radius: middleRadius, color: "255, 213, 79", alpha: 0.6 },
+    { radius: innerRadius, color: "255, 255, 255", alpha: 0.8 },
+  ];
+
+  layers.forEach(({ radius, color, alpha }) => {
+    if (radius <= 0) {
+      return;
+    }
+
+    this.ctx.beginPath();
+    this.ctx.fillStyle = `rgba(${color}, ${Math.max(1 - progress, 0) * alpha})`;
+    this.ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    this.ctx.fill();
+  });
+
+  this.ctx.restore();
+};
+
+SpaceShip.prototype.triggerExplosion = function (posX, posY) {
+  if (this.explosion.active) {
+    return;
+  }
+
+  this.explosion.active = true;
+  this.explosion.frame = 0;
+  this.explosion.posX = posX;
+  this.explosion.posY = posY;
+  this.dx = 0;
+  this.dy = 0;
+  this.dAngle = 0;
+  this.throttle = false;
+};
+
+SpaceShip.prototype.reset = function () {
+  this.posX = 50;
+  this.posY = this.canvas.height / 2;
+  this.angle = 0;
+  this.speed = 0;
+  this.dx = 0;
+  this.dy = 0;
+  this.dAngle = 0;
+  this.throttle = false;
+  this.explosion.active = false;
+  this.explosion.frame = 0;
+  this.explosion.posX = this.posX;
+  this.explosion.posY = this.posY;
+};
+
 SpaceShip.prototype.setListeners = function () {
   onkeydown = onkeyup = function (e) {
     this.tutorial = false;
@@ -113,6 +202,12 @@ SpaceShip.prototype.setListeners = function () {
 };
 
 SpaceShip.prototype.move = function () {
+  if (this.explosion.active) {
+    this.dx = 0;
+    this.dy = 0;
+    return;
+  }
+
   var acceleration = 0.2; // Increased acceleration
   var deceleration = 0.98; // Deceleration factor for smooth easing
   var angleChange = 0.1; // Factor for how quickly the ship turns
