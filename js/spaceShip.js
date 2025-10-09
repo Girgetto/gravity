@@ -107,7 +107,12 @@ SpaceShip.prototype.draw = function () {
   this.ctx.translate(this.posX, this.posY);
   this.ctx.rotate(this.angle);
 
+  if (this.throttle) {
+    this.drawThrusterBurst();
+  }
+
   if (this.imageLoaded) {
+    this.ctx.save();
     this.ctx.rotate(Math.PI / 2);
     this.ctx.drawImage(
       this.baseImage,
@@ -116,6 +121,7 @@ SpaceShip.prototype.draw = function () {
       this.baseImage.width / 4,
       this.baseImage.height / 4
     );
+    this.ctx.restore();
   }
 
   this.ctx.restore();
@@ -196,6 +202,49 @@ SpaceShip.prototype.reset = function () {
   this.explosion.frame = 0;
   this.explosion.posX = this.posX;
   this.explosion.posY = this.posY;
+};
+
+SpaceShip.prototype.drawThrusterBurst = function () {
+  const baseRadius = 6;
+  const flicker = Math.random() * 6;
+  const burstRadius = baseRadius + flicker;
+  const burstOffset = -this.baseImage.width / 16 - 8;
+
+  this.ctx.save();
+  this.ctx.globalCompositeOperation = "lighter";
+
+  const gradient = this.ctx.createRadialGradient(
+    burstOffset,
+    0,
+    baseRadius * 0.3,
+    burstOffset,
+    0,
+    burstRadius * 1.4
+  );
+
+  gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+  gradient.addColorStop(0.45, "rgba(255, 255, 255, 0.7)");
+  gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+  this.ctx.beginPath();
+  this.ctx.fillStyle = gradient;
+  this.ctx.arc(burstOffset, 0, burstRadius * 1.2, 0, Math.PI * 2);
+  this.ctx.fill();
+
+  this.ctx.beginPath();
+  this.ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+  this.ctx.ellipse(
+    burstOffset - burstRadius * 0.4,
+    0,
+    burstRadius * 1.6,
+    burstRadius * 0.9,
+    0,
+    0,
+    Math.PI * 2
+  );
+  this.ctx.fill();
+
+  this.ctx.restore();
 };
 
 SpaceShip.prototype.setListeners = function () {
