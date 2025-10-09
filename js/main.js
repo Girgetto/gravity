@@ -6,7 +6,7 @@ $(document).ready(() => {
   let planets = null;
   let goal = null;
   const timeLeft = 1000;
-  const gameOverCounter = 0;
+  let gameOverCounter = 0;
 
   function draw() {
     spaceShip.draw();
@@ -32,14 +32,23 @@ $(document).ready(() => {
   }
 
   function checkCollisionsWithGoal() {
-    if (goal.collision) {
-      game.setLevel();
-      game.level++;
-      game.timeLeft = timeLeft;
-      resetSpaceShip();
-      goal = new Goal(game.goal);
-      planets = game.planets.map((planet) => new Planet(planet));
+    if (!goal.collision) {
+      return;
     }
+
+    game.level++;
+    const hasNextLevel = game.setLevel();
+
+    if (!hasNextLevel) {
+      game.level = game.winLevel;
+      game.firstClick = true;
+      return;
+    }
+
+    game.timeLeft = timeLeft;
+    resetSpaceShip();
+    goal = new Goal(game.goal);
+    planets = game.planets.map((planet) => new Planet(planet));
   }
 
   function clearCanvas() {
@@ -63,19 +72,21 @@ $(document).ready(() => {
       planet.collision(spaceShip);
     });
     checkCollisionsWithGoal();
-    game.timeLeft--;
+    if (game.level <= game.totalLevels) {
+      game.timeLeft--;
+    }
 
     if (checkIfGameOver()) {
-      game.level = 7;
+      game.level = game.gameOverLevel;
       game.firstClick = true;
       gameOverCounter++;
     }
   }
 
   function engine() {
-    if (game.level === 6) {
+    if (game.level === game.winLevel) {
       game.winFrame();
-    } else if (game.level === 7) {
+    } else if (game.level === game.gameOverLevel) {
       clearInterval(interval);
       clearCanvas();
       game.drawGameOver();

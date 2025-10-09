@@ -6,6 +6,9 @@ function Game(ctx) {
   this.firstClick = true;
   this.ctx = ctx;
   this.isTrained = false;
+  this.totalLevels = TOTAL_PLAYABLE_LEVELS;
+  this.winLevel = this.totalLevels + 1;
+  this.gameOverLevel = this.totalLevels + 2;
 }
 
 Game.prototype.firstFrameDraw = function () {
@@ -47,7 +50,7 @@ Game.prototype.drawGameOver = function () {
 };
 
 Game.prototype.levelText = function () {
-  if (this.level < 6) {
+  if (this.level > 0 && this.level <= this.totalLevels) {
     this.ctx.save();
     this.ctx.beginPath();
     this.ctx.fillStyle = "#fff";
@@ -78,27 +81,24 @@ Game.prototype.winFrame = function () {
 Game.prototype.start = function (engine) {
   this.level++;
   this.firstClick = false;
-  this.setLevel(this.ctx);
+  if (!this.setLevel(this.ctx)) {
+    this.level = this.winLevel;
+    return null;
+  }
   return setInterval(engine, 1000 / 30);
 };
 
 Game.prototype.setLevel = function () {
-  const levels = [
-    { goal: { posX: 300, posY: 300 }, planets: [] },
-    level1,
-    level2,
-    level3,
-    level4(this.ctx),
-  ];
-
-  if (this.level > 4) {
+  if (this.level > this.totalLevels) {
     this.winFrame();
     return false;
   }
 
-  this.planets = levels[this.level].planets;
+  const { goal, planets } = getLevelConfiguration(this.level, this.ctx);
+  const safePlanets = Array.isArray(planets) ? planets : [];
 
-  this.goal = levels[this.level].goal;
+  this.planets = safePlanets.map((planet) => ({ ...planet }));
+  this.goal = goal ? { ...goal } : { posX: 300, posY: 300 };
 
   return true;
 };
