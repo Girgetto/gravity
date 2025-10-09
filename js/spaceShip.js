@@ -54,20 +54,25 @@ SpaceShip.prototype.collision = function (planet) {
   let distance = Math.sqrt(diffX * diffX + diffY * diffY);
   let angle = Math.atan2(diffY, diffX);
 
+  const influenceRadius =
+    planet.gravityInfluenceRadius || this.gravityInfluenceRadius;
+
   if (distance < planet.radius) {
     this.dx = 0;
     this.dy = 0;
-  } else if (distance <= this.gravityInfluenceRadius) {
-    const force = this.gravityFormula(planet, distance);
+  } else if (distance <= influenceRadius) {
+    const force = this.gravityFormula(planet, distance, influenceRadius);
     this.dx += force * Math.cos(angle);
     this.dy += force * Math.sin(angle);
   }
 };
 
-SpaceShip.prototype.gravityFormula = function (planet, distance) {
+SpaceShip.prototype.gravityFormula = function (planet, distance, influenceRadius) {
   const safeDistance = Math.max(distance, 1);
   const gravityForce = (G_CONSTANT * planet.mass) / (safeDistance * safeDistance);
-  const distanceFactor = 1 - Math.min(safeDistance / this.gravityInfluenceRadius, 1);
+  const effectiveInfluenceRadius = influenceRadius || this.gravityInfluenceRadius;
+  const distanceFactor =
+    1 - Math.min(safeDistance / effectiveInfluenceRadius, 1);
   const scaledForce = gravityForce * Math.max(distanceFactor, 0);
 
   return Math.min(this.maxGravityForce, scaledForce);
