@@ -79,7 +79,7 @@ Game.prototype.winFrame = function () {
 };
 
 Game.prototype.start = function (engine) {
-  this.level++;
+  this.level = 6;
   this.firstClick = false;
   if (!this.setLevel(this.ctx)) {
     this.level = this.winLevel;
