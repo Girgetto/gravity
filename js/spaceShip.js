@@ -96,8 +96,6 @@ SpaceShip.prototype.update = function () {
 };
 
 SpaceShip.prototype.draw = function () {
-  this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
   if (this.explosion.active) {
     this.drawExplosion();
     return;
