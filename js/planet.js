@@ -31,16 +31,50 @@ function Planet({ posX, posY, radius, density }) {
     BASE_GRAVITY_INFLUENCE_RADIUS * massFactor,
     this.radius
   );
-  this.img = new Image();
-  this.img.src = "./img/planet.png";
+  this.colorProfile = generatePlanetColorProfile(this.density);
   //this.audio = new Audio("audio/metallic_space_impact.mp3");
+}
+
+function generatePlanetColorProfile(density) {
+  const densityRatio = density / BASE_PLANET_DENSITY;
+  const clampedRatio = Math.max(Math.min(densityRatio, 2.5), 0.2);
+
+  const hue = 210 - (clampedRatio - 0.2) * 70;
+  const saturation = 55 + clampedRatio * 10;
+  const lightness = 55 - clampedRatio * 5;
+
+  return {
+    highlight: `hsl(${hue}, ${saturation}%, ${Math.min(lightness + 12, 80)}%)`,
+    mid: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
+    shadow: `hsl(${hue}, ${Math.min(saturation + 10, 100)}%, ${Math.max(
+      lightness - 15,
+      10
+    )}%)`,
+  };
 }
 
 Planet.prototype.draw = function (ctx) {
   ctx.save();
   ctx.beginPath();
-  const diameter = this.radius * 2;
-  ctx.drawImage(this.img, this.posX - this.radius, this.posY - this.radius, diameter, diameter);
+  const gradient = ctx.createRadialGradient(
+    this.posX - this.radius * 0.35,
+    this.posY - this.radius * 0.35,
+    this.radius * 0.2,
+    this.posX,
+    this.posY,
+    this.radius
+  );
+
+  gradient.addColorStop(0, this.colorProfile.highlight);
+  gradient.addColorStop(0.6, this.colorProfile.mid);
+  gradient.addColorStop(1, this.colorProfile.shadow);
+
+  ctx.fillStyle = gradient;
+  ctx.arc(this.posX, this.posY, this.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = this.colorProfile.shadow;
+  ctx.lineWidth = Math.max(this.radius * 0.04, 1);
+  ctx.stroke();
   ctx.closePath();
   ctx.restore();
 };
