@@ -22,7 +22,7 @@ Game.prototype.firstFrameDraw = function () {
   this.ctx.textBaseline = "middle";
 
   this.ctx.font = "80px invasion";
-  this.ctx.fillText("IRONSPACE", centerX, centerY - 60);
+  this.ctx.fillText("GRAVITY", centerX, centerY - 60);
 
   this.ctx.font = "50px invasion";
   this.ctx.fillText("PRESS ENTER TO START", centerX, centerY + 10);
