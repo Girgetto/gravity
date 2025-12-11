@@ -1,6 +1,6 @@
 # Gravity
 
-## Tutorial 
+## Tutorial 
 --------
 ```
 W move forward

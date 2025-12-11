@@ -66,20 +66,21 @@ Game.prototype.levelText = function () {
 
 Game.prototype.winFrame = function () {
   this.ctx.save();
+  this.ctx.fillStyle = "#000";
+  this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+
   this.ctx.beginPath();
   this.ctx.fillStyle = "#fff";
+  this.ctx.textAlign = "center";
+  this.ctx.textBaseline = "middle";
   this.ctx.font = "80px invasion";
-  this.ctx.fillText(
-    "YOU WIN!",
-    this.ctx.canvas.width / 3,
-    this.ctx.canvas.height / 2
-  );
+  this.ctx.fillText("YOU WIN!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2);
   this.ctx.closePath();
   this.ctx.restore();
 };
 
 Game.prototype.start = function (engine) {
-  this.level = 6;
+  this.level = 0;
   this.firstClick = false;
   if (!this.setLevel(this.ctx)) {
     this.level = this.winLevel;

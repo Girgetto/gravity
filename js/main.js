@@ -87,6 +87,10 @@ $(document).ready(() => {
 
   function engine() {
     if (game.level === game.winLevel) {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
       game.winFrame();
     } else if (game.level === game.gameOverLevel) {
       clearInterval(interval);
@@ -101,6 +105,10 @@ $(document).ready(() => {
   game.firstFrameDraw();
 
   function startGame() {
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    }
     resetGame();
     interval = game.start(engine);
   }
