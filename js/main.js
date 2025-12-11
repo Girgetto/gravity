@@ -2,6 +2,7 @@ $(document).ready(() => {
   const context = new Context();
   const spaceShip = new SpaceShip(context.ctx, context.canvas);
   const game = new Game(context.ctx);
+  const starField = new StarField(context.ctx, context.canvas);
   let interval = null;
   let planets = null;
   let goal = null;
@@ -9,6 +10,7 @@ $(document).ready(() => {
   let gameOverCounter = 0;
 
   function draw() {
+    starField.draw();
     spaceShip.draw();
     goal.draw(spaceShip.ctx);
     game.levelText(spaceShip.ctx);

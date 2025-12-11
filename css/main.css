@@ -14,6 +14,5 @@ body {
 
 
 #myCanvas {
-    background: #000 url(http://www.script-tutorials.com/demos/360/images/stars.png);
-    background-size: 100% 100%;
+    background: #000;
 }
