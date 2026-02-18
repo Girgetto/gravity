@@ -36,15 +36,17 @@ Game.prototype.firstFrameDraw = function () {
 
 Game.prototype.drawGameOver = function () {
   this.ctx.save();
+  this.ctx.fillStyle = "#000";
+  this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
   this.ctx.beginPath();
-  this.ctx.fillStyle = "#fff";
+  this.ctx.fillStyle = "#ff4444";
+  this.ctx.textAlign = "center";
+  this.ctx.textBaseline = "middle";
   this.ctx.font = "80px invasion";
-  this.ctx.fillText(
-    "GAME OVER",
-    this.ctx.canvas.width / 3 - 50,
-    this.ctx.canvas.height / 2
-  );
-  this.ctx.font = "50px invasion";
+  this.ctx.fillText("GAME OVER", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 - 30);
+  this.ctx.fillStyle = "#fff";
+  this.ctx.font = "36px invasion";
+  this.ctx.fillText("PRESS ENTER TO RESTART", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 + 50);
   this.ctx.closePath();
   this.ctx.restore();
 };
@@ -60,6 +62,26 @@ Game.prototype.levelText = function () {
     this.ctx.font = "50px invasion";
     this.ctx.fillText(`Time left ${this.timeLeft}`, this.ctx.canvas.width - 550, 50);
     this.ctx.closePath();
+
+    // Timer progress bar
+    const barX = 50;
+    const barY = 68;
+    const barW = this.ctx.canvas.width - 100;
+    const barH = 7;
+    const fillW = Math.max(0, (this.timeLeft / 1000) * barW);
+    const timerColor =
+      this.timeLeft > 300 ? "#00dd88" :
+      this.timeLeft > 150 ? "#ffaa22" : "#ff3333";
+
+    this.ctx.beginPath();
+    this.ctx.globalAlpha = 0.2;
+    this.ctx.fillStyle = "#fff";
+    this.ctx.fillRect(barX, barY, barW, barH);
+    this.ctx.globalAlpha = 1;
+    this.ctx.fillStyle = timerColor;
+    this.ctx.fillRect(barX, barY, fillW, barH);
+    this.ctx.closePath();
+
     this.ctx.restore();
   }
 };
@@ -70,11 +92,14 @@ Game.prototype.winFrame = function () {
   this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
   this.ctx.beginPath();
-  this.ctx.fillStyle = "#fff";
+  this.ctx.fillStyle = "#00ff88";
   this.ctx.textAlign = "center";
   this.ctx.textBaseline = "middle";
   this.ctx.font = "80px invasion";
-  this.ctx.fillText("YOU WIN!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2);
+  this.ctx.fillText("YOU WIN!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 - 30);
+  this.ctx.fillStyle = "#fff";
+  this.ctx.font = "36px invasion";
+  this.ctx.fillText("PRESS ENTER TO PLAY AGAIN", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 + 50);
   this.ctx.closePath();
   this.ctx.restore();
 };

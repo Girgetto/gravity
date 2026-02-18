@@ -227,6 +227,78 @@ const levelDefinitions = [
       },
     ],
   }),
+  // Level 10 — Binary: two massive planets forming a gravity channel
+  (ctx) => ({
+    goal: {
+      posX: ctx.canvas.width - 150,
+      posY: ctx.canvas.height / 2,
+    },
+    planets: [
+      {
+        posX: ctx.canvas.width / 2 - 80,
+        posY: ctx.canvas.height / 4,
+        radius: 58,
+        density: Math.pow(10, 6) * 1.7,
+      },
+      {
+        posX: ctx.canvas.width / 2 + 80,
+        posY: (ctx.canvas.height / 4) * 3,
+        radius: 58,
+        density: Math.pow(10, 6) * 1.7,
+      },
+      {
+        posX: ctx.canvas.width - 370,
+        posY: ctx.canvas.height / 2 - 160,
+        radius: 24,
+        density: Math.pow(10, 6) * 0.9,
+      },
+      {
+        posX: ctx.canvas.width - 370,
+        posY: ctx.canvas.height / 2 + 160,
+        radius: 24,
+        density: Math.pow(10, 6) * 0.9,
+      },
+    ],
+  }),
+  // Level 11 — Solar System: a giant central planet with orbital guards
+  (ctx) => ({
+    goal: {
+      posX: ctx.canvas.width - 150,
+      posY: 90,
+    },
+    planets: [
+      {
+        posX: ctx.canvas.width / 2,
+        posY: ctx.canvas.height / 2,
+        radius: 80,
+        density: Math.pow(10, 6) * 2.0,
+      },
+      {
+        posX: ctx.canvas.width / 2,
+        posY: ctx.canvas.height / 2 - 255,
+        radius: 22,
+        density: Math.pow(10, 6) * 0.8,
+      },
+      {
+        posX: ctx.canvas.width / 2 + 285,
+        posY: ctx.canvas.height / 2,
+        radius: 22,
+        density: Math.pow(10, 6) * 0.8,
+      },
+      {
+        posX: ctx.canvas.width / 2,
+        posY: ctx.canvas.height / 2 + 255,
+        radius: 22,
+        density: Math.pow(10, 6) * 0.8,
+      },
+      {
+        posX: ctx.canvas.width / 2 - 285,
+        posY: ctx.canvas.height / 2,
+        radius: 22,
+        density: Math.pow(10, 6) * 0.8,
+      },
+    ],
+  }),
 ];
 
 const TOTAL_PLAYABLE_LEVELS = levelDefinitions.length - 1;

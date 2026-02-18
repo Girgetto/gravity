@@ -42,6 +42,10 @@ function SpaceShip(ctx, canvas) {
     posX: 0,
     posY: 0,
   };
+
+  // Trail and proximity state
+  this.trail = [];
+  this.dangerLevel = 0;
 }
 
 SpaceShip.prototype.collision = function (planet) {
@@ -64,6 +68,13 @@ SpaceShip.prototype.collision = function (planet) {
     const force = this.gravityFormula(planet, distance, influenceRadius);
     this.dx += force * Math.cos(angle);
     this.dy += force * Math.sin(angle);
+  }
+
+  // Danger proximity: within 2x the planet radius
+  const dangerZone = planet.radius * 2.5;
+  if (distance > planet.radius && distance < dangerZone) {
+    const t = 1 - (distance - planet.radius) / (dangerZone - planet.radius);
+    this.dangerLevel = Math.max(this.dangerLevel, t);
   }
 };
 
@@ -89,6 +100,12 @@ SpaceShip.prototype.update = function () {
     return;
   }
 
+  // Record trail position before moving
+  this.trail.push({ x: this.posX, y: this.posY });
+  if (this.trail.length > 22) {
+    this.trail.shift();
+  }
+
   this.posY += this.dy;
   this.posX += this.dx;
   this.angle += this.dAngle;
@@ -99,6 +116,21 @@ SpaceShip.prototype.draw = function () {
   if (this.explosion.active) {
     this.drawExplosion();
     return;
+  }
+
+  // Draw motion trail
+  this.drawTrail();
+
+  // Danger proximity ring
+  if (this.dangerLevel > 0) {
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = "lighter";
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = `rgba(255, 55, 55, ${Math.min(this.dangerLevel, 1) * 0.85})`;
+    this.ctx.lineWidth = 2 + this.dangerLevel * 3;
+    this.ctx.arc(this.posX, this.posY, 22 + this.dangerLevel * 12, 0, Math.PI * 2);
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   this.ctx.save();
@@ -139,6 +171,27 @@ SpaceShip.prototype.draw = function () {
   if (this.posY > this.canvas.height) {
     this.dy *= -1;
   }
+};
+
+SpaceShip.prototype.drawTrail = function () {
+  if (this.trail.length < 2) return;
+
+  this.ctx.save();
+  this.ctx.globalCompositeOperation = "lighter";
+
+  for (let i = 0; i < this.trail.length; i++) {
+    const t = this.trail[i];
+    const progress = i / this.trail.length;
+    const alpha = progress * 0.3;
+    const radius = progress * 4.5;
+
+    this.ctx.beginPath();
+    this.ctx.fillStyle = `rgba(100, 190, 255, ${alpha})`;
+    this.ctx.arc(t.x, t.y, radius, 0, Math.PI * 2);
+    this.ctx.fill();
+  }
+
+  this.ctx.restore();
 };
 
 SpaceShip.prototype.drawExplosion = function () {
@@ -200,6 +253,8 @@ SpaceShip.prototype.reset = function () {
   this.explosion.frame = 0;
   this.explosion.posX = this.posX;
   this.explosion.posY = this.posY;
+  this.trail = [];
+  this.dangerLevel = 0;
 };
 
 SpaceShip.prototype.drawThrusterBurst = function () {
@@ -316,4 +371,3 @@ SpaceShip.prototype.move = function () {
     this.posY = this.H + 5;
   }
 };
-

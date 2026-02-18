@@ -9,6 +9,11 @@ $(document).ready(() => {
   const timeLeft = 1000;
   let gameOverCounter = 0;
 
+  // Celebration state
+  let levelClearDelay = 0;
+  const LEVEL_CLEAR_DELAY = 55;
+  let screenFlashAlpha = 0;
+
   function draw() {
     starField.draw();
     spaceShip.draw();
@@ -17,6 +22,33 @@ $(document).ready(() => {
     planets.forEach((planet) => {
       planet.draw(spaceShip.ctx);
     });
+
+    // Screen flash on goal reached
+    if (screenFlashAlpha > 0) {
+      spaceShip.ctx.save();
+      spaceShip.ctx.fillStyle = `rgba(0, 255, 120, ${screenFlashAlpha})`;
+      spaceShip.ctx.fillRect(0, 0, spaceShip.canvas.width, spaceShip.canvas.height);
+      spaceShip.ctx.restore();
+      screenFlashAlpha = Math.max(0, screenFlashAlpha - 0.045);
+    }
+
+    // "LEVEL CLEAR!" overlay during celebration
+    if (levelClearDelay > 0) {
+      const progress = levelClearDelay / LEVEL_CLEAR_DELAY;
+      const alpha = progress < 0.75 ? 1 : 1 - (progress - 0.75) / 0.25;
+      const scale = 1 + (1 - Math.min(progress * 2, 1)) * 0.25;
+
+      spaceShip.ctx.save();
+      spaceShip.ctx.globalAlpha = alpha;
+      spaceShip.ctx.translate(spaceShip.canvas.width / 2, spaceShip.canvas.height / 2);
+      spaceShip.ctx.scale(scale, scale);
+      spaceShip.ctx.font = "80px invasion";
+      spaceShip.ctx.fillStyle = "#00ff88";
+      spaceShip.ctx.textAlign = "center";
+      spaceShip.ctx.textBaseline = "middle";
+      spaceShip.ctx.fillText("LEVEL CLEAR!", 0, 0);
+      spaceShip.ctx.restore();
+    }
   }
 
   function resetSpaceShip() {
@@ -31,13 +63,11 @@ $(document).ready(() => {
     goal = new Goal(game.goal);
     planets = game.planets.map((planet) => new Planet(planet));
     game.firstClick = true;
+    levelClearDelay = 0;
+    screenFlashAlpha = 0;
   }
 
-  function checkCollisionsWithGoal() {
-    if (!goal.collision) {
-      return;
-    }
-
+  function advanceLevel() {
     game.level++;
     const hasNextLevel = game.setLevel();
 
@@ -51,6 +81,20 @@ $(document).ready(() => {
     resetSpaceShip();
     goal = new Goal(game.goal);
     planets = game.planets.map((planet) => new Planet(planet));
+  }
+
+  function checkCollisionsWithGoal() {
+    if (levelClearDelay > 0) {
+      return;
+    }
+
+    if (!goal.collision) {
+      return;
+    }
+
+    goal.triggerCelebration();
+    screenFlashAlpha = 0.65;
+    levelClearDelay = 1;
   }
 
   function clearCanvas() {
@@ -67,6 +111,7 @@ $(document).ready(() => {
   }
 
   function update() {
+    spaceShip.dangerLevel = 0;
     planets.forEach((planet) => spaceShip.collision(planet));
     spaceShip.update();
     goal.update(spaceShip);
@@ -97,7 +142,15 @@ $(document).ready(() => {
       clearCanvas();
       game.drawGameOver();
     } else {
-      update();
+      if (levelClearDelay === 0) {
+        update();
+      } else {
+        levelClearDelay++;
+        if (levelClearDelay >= LEVEL_CLEAR_DELAY) {
+          levelClearDelay = 0;
+          advanceLevel();
+        }
+      }
       draw();
     }
   }

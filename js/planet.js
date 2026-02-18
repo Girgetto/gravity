@@ -54,6 +54,19 @@ function generatePlanetColorProfile(density) {
 }
 
 Planet.prototype.draw = function (ctx) {
+  // Subtle gravity influence ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.globalAlpha = 0.07;
+  ctx.strokeStyle = this.colorProfile.mid;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 11]);
+  ctx.arc(this.posX, this.posY, this.gravityInfluenceRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.closePath();
+  ctx.restore();
+
   ctx.save();
   ctx.beginPath();
   const gradient = ctx.createRadialGradient(
