@@ -52,14 +52,23 @@ Goal.prototype.draw = function (ctx) {
 
   ctx.restore();
 
-  // Target sprite and label
-  ctx.save();
-  ctx.beginPath();
-  ctx.fillStyle = "#fff";
-  ctx.font = "20px invasion";
-  ctx.fillText("TARGET", this.posX - 15, this.posY - 10);
+  // Target sprite
   ctx.drawImage(this.img, this.posX, this.posY, this.width, this.height);
-  ctx.closePath();
+
+  // Bracketed neon TARGET label
+  ctx.save();
+  const labelText = "[ TARGET ]";
+  ctx.font = "20px invasion";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.shadowColor = "#00ff88";
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = "#00ff88";
+  ctx.fillText(labelText, cx, this.posY - 14);
+  ctx.fillText(labelText, cx, this.posY - 14);
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = "#fff";
+  ctx.fillText(labelText, cx, this.posY - 14);
   ctx.restore();
 
   // Celebration burst

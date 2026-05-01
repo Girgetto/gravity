@@ -3,27 +3,24 @@ $(document).ready(() => {
   const spaceShip = new SpaceShip(context.ctx, context.canvas);
   const game = new Game(context.ctx);
   const starField = new StarField(context.ctx, context.canvas);
-  let interval = null;
-  let planets = null;
+  let planets = [];
   let goal = null;
-  const timeLeft = 1000;
-  let gameOverCounter = 0;
+  const TIME_LEFT_START = 1000;
+  const FPS = 30;
 
-  // Celebration state
   let levelClearDelay = 0;
   const LEVEL_CLEAR_DELAY = 55;
   let screenFlashAlpha = 0;
+  let scorePopups = [];
 
-  function draw() {
+  function drawGameplay() {
     starField.draw();
     spaceShip.draw();
-    goal.draw(spaceShip.ctx);
-    game.levelText(spaceShip.ctx);
-    planets.forEach((planet) => {
-      planet.draw(spaceShip.ctx);
-    });
+    if (goal) goal.draw(spaceShip.ctx);
+    planets.forEach((p) => p.draw(spaceShip.ctx));
+    drawScorePopups(spaceShip.ctx);
+    game.drawHud();
 
-    // Screen flash on goal reached
     if (screenFlashAlpha > 0) {
       spaceShip.ctx.save();
       spaceShip.ctx.fillStyle = `rgba(0, 255, 120, ${screenFlashAlpha})`;
@@ -32,39 +29,56 @@ $(document).ready(() => {
       screenFlashAlpha = Math.max(0, screenFlashAlpha - 0.045);
     }
 
-    // "LEVEL CLEAR!" overlay during celebration
     if (levelClearDelay > 0) {
       const progress = levelClearDelay / LEVEL_CLEAR_DELAY;
       const alpha = progress < 0.75 ? 1 : 1 - (progress - 0.75) / 0.25;
-      const scale = 1 + (1 - Math.min(progress * 2, 1)) * 0.25;
+      const scale = 1 + (1 - Math.min(progress * 2, 1)) * 0.3;
 
       spaceShip.ctx.save();
       spaceShip.ctx.globalAlpha = alpha;
       spaceShip.ctx.translate(spaceShip.canvas.width / 2, spaceShip.canvas.height / 2);
       spaceShip.ctx.scale(scale, scale);
-      spaceShip.ctx.font = "80px invasion";
-      spaceShip.ctx.fillStyle = "#00ff88";
-      spaceShip.ctx.textAlign = "center";
-      spaceShip.ctx.textBaseline = "middle";
-      spaceShip.ctx.fillText("LEVEL CLEAR!", 0, 0);
+      drawChromaticTitle(spaceShip.ctx, "LEVEL CLEAR!", 0, 0, {
+        font: "84px invasion",
+        offset: 4,
+        baseColor: ARCADE_PALETTE.green,
+        accentColor: ARCADE_PALETTE.cyan,
+        glow: 28,
+      });
       spaceShip.ctx.restore();
+    }
+  }
+
+  function drawScorePopups(ctx) {
+    if (scorePopups.length === 0) return;
+    scorePopups = scorePopups.filter((p) => p.life > 0);
+    scorePopups.forEach((p) => {
+      p.life--;
+      p.y -= 1.2;
+      const alpha = Math.max(0, p.life / p.maxLife);
+      drawArcadeText(ctx, p.text, p.x, p.y, {
+        font: "26px invasion",
+        color: ARCADE_PALETTE.yellow,
+        glowBlur: 14,
+        fillColor: "#fff",
+        alpha,
+      });
+    });
+  }
+
+  function drawMenuFrame() {
+    starField.draw();
+    if (game.level === 0) {
+      game.drawTitleScreen();
+    } else if (game.level === game.winLevel) {
+      game.drawWinScreen();
+    } else if (game.level === game.gameOverLevel) {
+      game.drawGameOver();
     }
   }
 
   function resetSpaceShip() {
     spaceShip.reset();
-  }
-
-  function resetGame() {
-    resetSpaceShip();
-    game.level = 0;
-    game.timeLeft = timeLeft;
-    game.setLevel();
-    goal = new Goal(game.goal);
-    planets = game.planets.map((planet) => new Planet(planet));
-    game.firstClick = true;
-    levelClearDelay = 0;
-    screenFlashAlpha = 0;
   }
 
   function advanceLevel() {
@@ -74,36 +88,41 @@ $(document).ready(() => {
     if (!hasNextLevel) {
       game.level = game.winLevel;
       game.firstClick = true;
+      game.persistHighScore();
       return;
     }
 
-    game.timeLeft = timeLeft;
+    game.timeLeft = TIME_LEFT_START;
     resetSpaceShip();
     goal = new Goal(game.goal);
     planets = game.planets.map((planet) => new Planet(planet));
   }
 
-  function checkCollisionsWithGoal() {
-    if (levelClearDelay > 0) {
-      return;
-    }
+  function awardLevelClearScore() {
+    const base = 1000;
+    const timeBonus = Math.max(0, game.timeLeft) * 2;
+    const total = base + timeBonus;
+    game.score += total;
 
-    if (!goal.collision) {
-      return;
-    }
-
-    goal.triggerCelebration();
-    screenFlashAlpha = 0.65;
-    levelClearDelay = 1;
+    const popupX = goal ? goal.posX + goal.width / 2 : spaceShip.canvas.width / 2;
+    const popupY = goal ? goal.posY - 20 : spaceShip.canvas.height / 2;
+    scorePopups.push({
+      text: `+${total}`,
+      x: popupX,
+      y: popupY,
+      life: 50,
+      maxLife: 50,
+    });
   }
 
-  function clearCanvas() {
-    spaceShip.ctx.clearRect(
-      0,
-      0,
-      spaceShip.canvas.width,
-      spaceShip.canvas.height
-    );
+  function checkCollisionsWithGoal() {
+    if (levelClearDelay > 0) return;
+    if (!goal || !goal.collision) return;
+
+    goal.triggerCelebration();
+    awardLevelClearScore();
+    screenFlashAlpha = 0.65;
+    levelClearDelay = 1;
   }
 
   function checkIfGameOver() {
@@ -114,11 +133,10 @@ $(document).ready(() => {
     spaceShip.dangerLevel = 0;
     planets.forEach((planet) => spaceShip.collision(planet));
     spaceShip.update();
-    goal.update(spaceShip);
-    planets.forEach((planet) => {
-      planet.collision(spaceShip);
-    });
+    if (goal) goal.update(spaceShip);
+    planets.forEach((planet) => planet.collision(spaceShip));
     checkCollisionsWithGoal();
+
     if (game.level <= game.totalLevels) {
       game.timeLeft--;
     }
@@ -126,45 +144,52 @@ $(document).ready(() => {
     if (checkIfGameOver()) {
       game.level = game.gameOverLevel;
       game.firstClick = true;
-      gameOverCounter++;
+      game.persistHighScore();
     }
   }
 
-  function engine() {
-    if (game.level === game.winLevel) {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-      game.winFrame();
-    } else if (game.level === game.gameOverLevel) {
-      clearInterval(interval);
-      clearCanvas();
-      game.drawGameOver();
+  function gameplayTick() {
+    if (levelClearDelay === 0) {
+      update();
     } else {
-      if (levelClearDelay === 0) {
-        update();
-      } else {
-        levelClearDelay++;
-        if (levelClearDelay >= LEVEL_CLEAR_DELAY) {
-          levelClearDelay = 0;
-          advanceLevel();
-        }
+      levelClearDelay++;
+      if (levelClearDelay >= LEVEL_CLEAR_DELAY) {
+        levelClearDelay = 0;
+        advanceLevel();
       }
-      draw();
+    }
+
+    if (game.firstClick) {
+      drawMenuFrame();
+    } else {
+      drawGameplay();
     }
   }
 
-  game.firstFrameDraw();
+  function tick() {
+    game.frame++;
+    if (game.firstClick) {
+      drawMenuFrame();
+    } else {
+      gameplayTick();
+    }
+  }
 
   function startGame() {
-    if (interval) {
-      clearInterval(interval);
-      interval = null;
-    }
-    resetGame();
-    interval = game.start(engine);
+    game.level = 0;
+    game.timeLeft = TIME_LEFT_START;
+    game.score = 0;
+    game.firstClick = false;
+    game.setLevel();
+    resetSpaceShip();
+    goal = new Goal(game.goal);
+    planets = game.planets.map((planet) => new Planet(planet));
+    levelClearDelay = 0;
+    screenFlashAlpha = 0;
+    scorePopups = [];
   }
+
+  setInterval(tick, 1000 / FPS);
 
   $(document).keypress((e) => {
     if (e.which === 13 && game.firstClick) {

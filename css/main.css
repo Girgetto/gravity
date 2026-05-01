@@ -4,15 +4,53 @@
 }
 
 body {
-    margin: 0 auto;
-    background: #000;
+    margin: 0;
+    background:
+        radial-gradient(ellipse at center, #0a0820 0%, #02020a 55%, #000 100%);
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    overflow: hidden;
+    font-family: 'invasion', monospace;
 }
-
 
 #myCanvas {
     background: #000;
+    border: 2px solid #00f0ff;
+    border-radius: 6px;
+    box-shadow:
+        0 0 18px rgba(0, 240, 255, 0.55),
+        0 0 60px rgba(255, 43, 177, 0.18),
+        inset 0 0 80px rgba(0, 100, 200, 0.08);
+}
+
+/* CRT scanlines */
+body::after {
+    content: "";
+    position: fixed;
+    pointer-events: none;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.22) 0px,
+        rgba(0, 0, 0, 0.22) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+    z-index: 100;
+}
+
+/* Subtle vignette over the canvas */
+body::before {
+    content: "";
+    position: fixed;
+    pointer-events: none;
+    inset: 0;
+    background: radial-gradient(
+        ellipse at center,
+        transparent 55%,
+        rgba(0, 0, 0, 0.55) 100%
+    );
+    z-index: 99;
 }

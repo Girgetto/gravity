@@ -25,154 +25,177 @@ function Planet({ posX, posY, radius, density }) {
   const massFactor = Math.sqrt(Math.max(massRatio, 0));
 
   this.radius = Math.max(this.originalRadius * massFactor, 5);
-  // Expand the planet's gravity reach using the same factor so denser
-  // planets pull from farther away.
   this.gravityInfluenceRadius = Math.max(
     BASE_GRAVITY_INFLUENCE_RADIUS * massFactor,
     this.radius
   );
   this.colorProfile = generatePlanetColorProfile(this.density);
-  //this.audio = new Audio("audio/metallic_space_impact.mp3");
+  this.frame = Math.floor(Math.random() * 200);
 }
 
 function generatePlanetColorProfile(density) {
   const densityRatio = density / BASE_PLANET_DENSITY;
   const clampedRatio = Math.max(Math.min(densityRatio, 2.5), 0.2);
 
-  const hue = 210 - (clampedRatio - 0.2) * 70;
-  const saturation = 55 + clampedRatio * 10;
-  const lightness = 55 - clampedRatio * 5;
+  // Map density to arcade hue: low = cyan/blue, mid = magenta/pink, high = orange/red
+  const hue = 200 - (clampedRatio - 0.2) * 95;
+  const sat = 95;
 
   return {
     hue,
-    saturation,
-    lightness,
-    highlight: `hsl(${hue}, ${saturation}%, ${Math.min(lightness + 12, 80)}%)`,
-    mid: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
-    shadow: `hsl(${hue}, ${Math.min(saturation + 10, 100)}%, ${Math.max(
-      lightness - 15,
-      10
-    )}%)`,
+    sat,
+    densityRatio,
+    body:    `hsl(${hue}, ${sat}%, 50%)`,
+    light:   `hsl(${hue}, ${sat}%, 78%)`,
+    dark:    `hsl(${hue}, ${sat}%, 22%)`,
+    outline: `hsl(${hue}, ${sat}%, 8%)`,
+    glow:    `hsl(${hue}, 100%, 62%)`,
+    halo:    (a) => `hsla(${hue}, 100%, 62%, ${a})`,
   };
 }
 
 Planet.prototype.draw = function (ctx) {
+  this.frame++;
+
   const { posX, posY, radius } = this;
   const cp = this.colorProfile;
-  const { hue, saturation, lightness } = cp;
-  const densityRatio = this.density / BASE_PLANET_DENSITY;
+  const densityRatio = cp.densityRatio;
 
-  // 1. Gravity influence ring
+  // 1. Gravity influence ring — animated dashed neon
   ctx.save();
   ctx.beginPath();
-  ctx.globalAlpha = 0.1;
-  ctx.strokeStyle = cp.mid;
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = cp.glow;
+  ctx.shadowColor = cp.glow;
+  ctx.shadowBlur = 6;
   ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 10]);
+  ctx.setLineDash([6, 9]);
+  ctx.lineDashOffset = -(this.frame * 0.5) % 15;
   ctx.arc(posX, posY, this.gravityInfluenceRadius, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.closePath();
   ctx.restore();
 
-  // 2. Planetary ring for large planets (drawn behind the body)
-  if (radius > 55) {
-    drawPlanetRing(ctx, posX, posY, radius, hue, saturation, lightness);
-  }
-
-  // 3. Atmosphere glow
+  // 2. Outer pulsing halo
+  const pulse = 1 + Math.sin(this.frame * 0.05) * 0.1;
+  const haloRadius = radius * 1.85 * pulse;
   ctx.save();
-  const glowGrad = ctx.createRadialGradient(
-    posX, posY, radius * 0.9,
-    posX, posY, radius * 1.55
-  );
-  glowGrad.addColorStop(0, `hsla(${hue}, ${saturation}%, ${Math.min(lightness + 15, 85)}%, 0.3)`);
-  glowGrad.addColorStop(1, `hsla(${hue}, ${saturation}%, ${lightness}%, 0)`);
-  ctx.fillStyle = glowGrad;
+  ctx.globalCompositeOperation = "lighter";
+  const haloGrad = ctx.createRadialGradient(posX, posY, radius * 0.95, posX, posY, haloRadius);
+  haloGrad.addColorStop(0,    cp.halo(0.55));
+  haloGrad.addColorStop(0.45, cp.halo(0.18));
+  haloGrad.addColorStop(1,    cp.halo(0));
+  ctx.fillStyle = haloGrad;
   ctx.beginPath();
-  ctx.arc(posX, posY, radius * 1.55, 0, Math.PI * 2);
+  ctx.arc(posX, posY, haloRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // 4. Main planet body
+  // 3. Planetary ring (behind body) for large planets
+  if (radius > 55) {
+    drawArcadePlanetRing(ctx, posX, posY, radius, cp);
+  }
+
+  // 4. Main body — flat saturated color with neon shadow glow
   ctx.save();
   ctx.beginPath();
-  const bodyGrad = ctx.createRadialGradient(
-    posX - radius * 0.35, posY - radius * 0.38, radius * 0.05,
-    posX + radius * 0.1,  posY + radius * 0.1,  radius * 1.05
-  );
-  bodyGrad.addColorStop(0,    `hsl(${hue}, ${saturation}%, ${Math.min(lightness + 22, 88)}%)`);
-  bodyGrad.addColorStop(0.35, cp.highlight);
-  bodyGrad.addColorStop(0.65, cp.mid);
-  bodyGrad.addColorStop(0.88, cp.shadow);
-  bodyGrad.addColorStop(1,    `hsl(${hue}, ${Math.min(saturation + 15, 100)}%, ${Math.max(lightness - 28, 5)}%)`);
-  ctx.fillStyle = bodyGrad;
+  ctx.shadowColor = cp.glow;
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = cp.body;
   ctx.arc(posX, posY, radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // 5. Surface details (density-based)
-  if (densityRatio < 0.85) {
-    // Light/gas giant: soft horizontal bands
-    drawPlanetGasBands(ctx, posX, posY, radius, hue, saturation, lightness);
-  } else if (densityRatio >= 1.5) {
-    // Dense/heavy planet: crater marks
-    drawPlanetCraters(ctx, posX, posY, radius, hue, saturation, lightness);
-  } else {
-    // Rocky/terrestrial: subtle surface patches
-    drawPlanetRockyPatches(ctx, posX, posY, radius, hue, saturation, lightness);
-  }
-
-  // 6. Specular highlight (glint from upper-left light source)
+  // 5. Shadow crescent (clipped offset disk)
   ctx.save();
   ctx.beginPath();
   ctx.arc(posX, posY, radius, 0, Math.PI * 2);
   ctx.clip();
-  const specGrad = ctx.createRadialGradient(
-    posX - radius * 0.42, posY - radius * 0.42, 0,
-    posX - radius * 0.42, posY - radius * 0.42, radius * 0.52
-  );
-  specGrad.addColorStop(0,   "rgba(255, 255, 255, 0.42)");
-  specGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.08)");
-  specGrad.addColorStop(1,   "rgba(255, 255, 255, 0)");
-  ctx.fillStyle = specGrad;
-  ctx.fillRect(posX - radius, posY - radius, radius * 2, radius * 2);
+  ctx.beginPath();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = cp.dark;
+  ctx.arc(posX + radius * 0.45, posY + radius * 0.45, radius * 1.05, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
-  // 7. Edge stroke
+  // 6. Surface details (chunky, density-based)
+  if (densityRatio < 0.85) {
+    drawArcadeBands(ctx, posX, posY, radius, cp);
+  } else if (densityRatio >= 1.5) {
+    drawArcadeCraters(ctx, posX, posY, radius, cp);
+  } else {
+    drawArcadePixels(ctx, posX, posY, radius, cp);
+  }
+
+  // 7. Specular highlight dot
+  ctx.save();
+  ctx.beginPath();
+  ctx.shadowColor = "#ffffff";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  const specR = Math.max(radius * 0.09, 2);
+  ctx.arc(posX - radius * 0.45, posY - radius * 0.45, specR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 8. Thick outline
   ctx.save();
   ctx.beginPath();
   ctx.arc(posX, posY, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${Math.max(lightness - 20, 8)}%, 0.75)`;
-  ctx.lineWidth = Math.max(radius * 0.04, 1);
+  ctx.strokeStyle = cp.outline;
+  ctx.lineWidth = Math.max(radius * 0.07, 2);
   ctx.stroke();
-  ctx.closePath();
+  ctx.restore();
+
+  // 9. Inner rim accent (neon edge highlight on lit side)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(posX, posY, radius * 0.97, Math.PI * 1.1, Math.PI * 1.85);
+  ctx.strokeStyle = cp.light;
+  ctx.lineWidth = Math.max(radius * 0.04, 1.5);
+  ctx.shadowColor = cp.glow;
+  ctx.shadowBlur = 8;
+  ctx.stroke();
   ctx.restore();
 };
 
-function drawPlanetRing(ctx, posX, posY, radius, hue, saturation, lightness) {
+function drawArcadePlanetRing(ctx, posX, posY, radius, cp) {
   ctx.save();
   ctx.translate(posX, posY);
   ctx.scale(1, 0.28);
 
-  const ringInner = radius * 1.22;
-  const ringOuter = radius * 1.82;
-  const ringGrad = ctx.createRadialGradient(0, 0, ringInner, 0, 0, ringOuter);
-  ringGrad.addColorStop(0,   `hsla(${hue}, ${saturation}%, ${lightness + 5}%, 0)`);
-  ringGrad.addColorStop(0.2, `hsla(${hue - 10}, ${saturation}%, ${lightness + 14}%, 0.55)`);
-  ringGrad.addColorStop(0.55,`hsla(${hue}, ${saturation}%, ${lightness + 6}%, 0.38)`);
-  ringGrad.addColorStop(0.8, `hsla(${hue + 5}, ${Math.max(saturation - 10, 0)}%, ${lightness + 2}%, 0.2)`);
-  ringGrad.addColorStop(1,   `hsla(${hue}, ${saturation}%, ${lightness}%, 0)`);
+  ctx.shadowColor = cp.glow;
+  ctx.shadowBlur = 14;
 
+  // Inner thick ring
   ctx.beginPath();
-  ctx.arc(0, 0, ringOuter, 0, Math.PI * 2);
-  ctx.fillStyle = ringGrad;
-  ctx.fill();
+  ctx.strokeStyle = cp.body;
+  ctx.lineWidth = radius * 0.22;
+  ctx.arc(0, 0, radius * 1.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Outer thin ring
+  ctx.beginPath();
+  ctx.strokeStyle = cp.light;
+  ctx.lineWidth = radius * 0.06;
+  ctx.arc(0, 0, radius * 1.85, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner ring outline
+  ctx.beginPath();
+  ctx.strokeStyle = cp.outline;
+  ctx.lineWidth = Math.max(radius * 0.025, 1);
+  ctx.shadowBlur = 0;
+  ctx.arc(0, 0, radius * 1.5 - radius * 0.11, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 1.5 + radius * 0.11, 0, Math.PI * 2);
+  ctx.stroke();
 
   ctx.restore();
 }
 
-function drawPlanetGasBands(ctx, posX, posY, radius, hue, saturation, lightness) {
+function drawArcadeBands(ctx, posX, posY, radius, cp) {
   ctx.save();
   ctx.beginPath();
   ctx.arc(posX, posY, radius * 0.96, 0, Math.PI * 2);
@@ -181,29 +204,32 @@ function drawPlanetGasBands(ctx, posX, posY, radius, hue, saturation, lightness)
   const bands = 5;
   for (let i = 0; i < bands; i++) {
     const t = (i + 0.5) / bands;
-    const y = posY - radius + t * radius * 2 - (radius * 0.2 / bands);
-    const bandH = radius * 0.28;
-    const hShift = i % 2 === 0 ? 14 : -10;
-    const lShift = i % 2 === 0 ? 9 : -4;
-    const alpha = 0.06 + Math.sin(t * Math.PI) * 0.07;
-    ctx.fillStyle = `hsla(${hue + hShift}, ${saturation}%, ${lightness + lShift}%, ${alpha})`;
-    ctx.fillRect(posX - radius, y, radius * 2, bandH);
+    const y = posY - radius + t * radius * 2;
+    const bandH = (radius * 2) / bands * 0.55;
+    if (i % 2 === 0) {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = cp.light;
+    } else {
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = cp.dark;
+    }
+    ctx.fillRect(posX - radius, y - bandH / 2, radius * 2, bandH);
   }
   ctx.restore();
 }
 
-function drawPlanetCraters(ctx, posX, posY, radius, hue, saturation, lightness) {
+function drawArcadeCraters(ctx, posX, posY, radius, cp) {
   ctx.save();
   ctx.beginPath();
-  ctx.arc(posX, posY, radius * 0.93, 0, Math.PI * 2);
+  ctx.arc(posX, posY, radius * 0.94, 0, Math.PI * 2);
   ctx.clip();
 
   const craters = [
-    { dx:  0.28, dy: -0.22, r: 0.14 },
-    { dx: -0.32, dy:  0.18, r: 0.11 },
-    { dx:  0.08, dy:  0.38, r: 0.09 },
-    { dx: -0.18, dy: -0.36, r: 0.07 },
-    { dx:  0.42, dy:  0.28, r: 0.08 },
+    { dx:  0.28, dy: -0.22, r: 0.16 },
+    { dx: -0.32, dy:  0.18, r: 0.13 },
+    { dx:  0.08, dy:  0.38, r: 0.10 },
+    { dx: -0.18, dy: -0.36, r: 0.09 },
+    { dx:  0.42, dy:  0.12, r: 0.08 },
   ];
 
   for (const c of craters) {
@@ -211,43 +237,51 @@ function drawPlanetCraters(ctx, posX, posY, radius, hue, saturation, lightness) 
     const cy = posY + c.dy * radius;
     const cr = c.r * radius;
 
-    // Crater bowl (darker fill)
+    // Crater bowl
     ctx.beginPath();
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = cp.dark;
     ctx.arc(cx, cy, cr, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${Math.max(lightness - 22, 5)}%, 0.45)`;
     ctx.fill();
 
-    // Rim highlight (upper-left arc — lit by upper-left light source)
+    // Bright rim arc on the lit side
     ctx.beginPath();
-    ctx.arc(cx - cr * 0.1, cy - cr * 0.1, cr * 0.85, Math.PI, Math.PI * 1.5);
-    ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${Math.min(lightness + 20, 88)}%, 0.32)`;
-    ctx.lineWidth = Math.max(cr * 0.22, 1);
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = cp.light;
+    ctx.lineWidth = Math.max(cr * 0.25, 1);
+    ctx.arc(cx, cy, cr * 0.92, Math.PI * 1.1, Math.PI * 1.85);
     ctx.stroke();
   }
   ctx.restore();
 }
 
-function drawPlanetRockyPatches(ctx, posX, posY, radius, hue, saturation, lightness) {
+function drawArcadePixels(ctx, posX, posY, radius, cp) {
   ctx.save();
   ctx.beginPath();
-  ctx.arc(posX, posY, radius * 0.9, 0, Math.PI * 2);
+  ctx.arc(posX, posY, radius * 0.92, 0, Math.PI * 2);
   ctx.clip();
 
-  const patches = [
-    { dx:  0.22, dy: -0.28, r: 0.16 },
-    { dx: -0.28, dy:  0.15, r: 0.13 },
-    { dx:  0.05, dy:  0.32, r: 0.11 },
-    { dx: -0.40, dy: -0.20, r: 0.10 },
+  const pixels = [
+    { dx:  0.22, dy: -0.28, s: 0.18 },
+    { dx: -0.30, dy:  0.18, s: 0.16 },
+    { dx:  0.08, dy:  0.34, s: 0.14 },
+    { dx: -0.42, dy: -0.18, s: 0.12 },
+    { dx:  0.36, dy:  0.10, s: 0.13 },
   ];
 
-  for (const p of patches) {
+  for (const p of pixels) {
     const px = posX + p.dx * radius;
     const py = posY + p.dy * radius;
-    const pr = p.r * radius;
-    ctx.beginPath();
-    ctx.arc(px, py, pr, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${hue + 8}, ${Math.max(saturation - 8, 0)}%, ${lightness + 7}%, 0.18)`;
-    ctx.fill();
+    const size = p.s * radius;
+
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = cp.light;
+    ctx.fillRect(px - size / 2, py - size / 2, size, size);
+
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = cp.outline;
+    ctx.lineWidth = Math.max(size * 0.12, 1);
+    ctx.strokeRect(px - size / 2, py - size / 2, size, size);
   }
   ctx.restore();
 }
