@@ -296,7 +296,7 @@ SpaceShip.prototype.drawPullParticles = function () {
   for (const p of this.pullParticles) {
     const fade = p.life / p.maxLife;
     this.ctx.beginPath();
-    this.ctx.strokeStyle = `hsla(${p.hue}, 100%, 72%, ${fade * 0.55})`;
+    this.ctx.strokeStyle = `hsla(${p.hue}, 55%, 74%, ${fade * 0.55})`;
     this.ctx.lineWidth = 1.5;
     this.ctx.moveTo(p.x - p.vx * 2, p.y - p.vy * 2);
     this.ctx.lineTo(p.x, p.y);
