@@ -8,7 +8,7 @@ const BASE_PLANET_RADIUS = 50;
 const BASE_PLANET_DENSITY = Math.pow(10, 6);
 const BASE_PLANET_MASS =
   Math.PI * Math.pow(BASE_PLANET_RADIUS, 2) * BASE_PLANET_DENSITY;
-const BASE_GRAVITY_INFLUENCE_RADIUS = 350;
+const BASE_GRAVITY_INFLUENCE_RADIUS = 420;
 
 function Planet({ posX, posY, radius, density }) {
   this.posX = posX;
@@ -31,6 +31,9 @@ function Planet({ posX, posY, radius, density }) {
   );
   this.colorProfile = generatePlanetColorProfile(this.density);
   this.frame = Math.floor(Math.random() * 200);
+  // How hard this planet is currently pulling the ship (0..1), set each tick
+  // by the ship's gravity pass and used to make the well visibly react.
+  this.pullStrength = 0;
 }
 
 function generatePlanetColorProfile(density) {
@@ -61,20 +64,44 @@ Planet.prototype.draw = function (ctx) {
   const cp = this.colorProfile;
   const densityRatio = cp.densityRatio;
 
-  // 1. Gravity influence ring — animated dashed neon
+  const pull = Math.max(Math.min(this.pullStrength || 0, 1), 0);
+
+  // 1. Gravity influence ring — animated dashed neon that wakes up and spins
+  // faster while the planet is actively pulling the ship.
   ctx.save();
   ctx.beginPath();
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.35 + pull * 0.45;
   ctx.strokeStyle = cp.glow;
   ctx.shadowColor = cp.glow;
-  ctx.shadowBlur = 6;
-  ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 6 + pull * 10;
+  ctx.lineWidth = 1.5 + pull * 1.5;
   ctx.setLineDash([6, 9]);
-  ctx.lineDashOffset = -(this.frame * 0.5) % 15;
+  ctx.lineDashOffset = -(this.frame * (0.5 + pull * 3)) % 15;
   ctx.arc(posX, posY, this.gravityInfluenceRadius, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
+
+  // 1b. Gravity well shading — the whole field glows while it grips the ship
+  if (pull > 0.02) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const wellGrad = ctx.createRadialGradient(
+      posX, posY, radius,
+      posX, posY, this.gravityInfluenceRadius
+    );
+    wellGrad.addColorStop(0, cp.halo(0.16 * pull + 0.04));
+    wellGrad.addColorStop(0.5, cp.halo(0.07 * pull));
+    wellGrad.addColorStop(1, cp.halo(0));
+    ctx.fillStyle = wellGrad;
+    ctx.beginPath();
+    ctx.arc(posX, posY, this.gravityInfluenceRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Ease the reaction back down between physics ticks / after the ship leaves
+  this.pullStrength *= 0.9;
 
   // 2. Outer pulsing halo
   const pulse = 1 + Math.sin(this.frame * 0.05) * 0.1;
