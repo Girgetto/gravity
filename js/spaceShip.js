@@ -1,4 +1,4 @@
-const G_CONSTANT = 0.0000005;
+const G_CONSTANT = 0.0000012;
 const map = {};
 const A_KEY = 65;
 const D_KEY = 68;
@@ -24,11 +24,11 @@ function SpaceShip(ctx, canvas) {
   this.throttle = false;
   this.isTurningRight = false;
   this.isTurningLeft = false;
-  this.maxSpeed = 5;
+  this.maxSpeed = 10;
   this.speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
   // Parameters to control the strength and reach of planetary gravity.
-  this.maxGravityForce = 0.6;
-  this.gravityInfluenceRadius = 350;
+  this.maxGravityForce = 1.2;
+  this.gravityInfluenceRadius = 420;
   this.baseImage = new Image();
   this.baseImage.src = './img/spaceship.png';
   this.baseImage.onload = () => {
@@ -46,7 +46,19 @@ function SpaceShip(ctx, canvas) {
   // Trail and proximity state
   this.trail = [];
   this.dangerLevel = 0;
+
+  // Net gravity acting on the ship this frame (for physics feedback visuals)
+  this.gravity = { x: 0, y: 0, strength: 0 };
+  this.dominantPull = null;
+  this.pullParticles = [];
 }
+
+SpaceShip.prototype.resetGravity = function () {
+  this.gravity.x = 0;
+  this.gravity.y = 0;
+  this.gravity.strength = 0;
+  this.dominantPull = null;
+};
 
 SpaceShip.prototype.collision = function (planet) {
   if (this.explosion.active) {
@@ -66,8 +78,25 @@ SpaceShip.prototype.collision = function (planet) {
     this.dy = 0;
   } else if (distance <= influenceRadius) {
     const force = this.gravityFormula(planet, distance, influenceRadius);
-    this.dx += force * Math.cos(angle);
-    this.dy += force * Math.sin(angle);
+    const forceX = force * Math.cos(angle);
+    const forceY = force * Math.sin(angle);
+    this.dx += forceX;
+    this.dy += forceY;
+
+    // Accumulate the net pull so the ship can visualize what it feels.
+    this.gravity.x += forceX;
+    this.gravity.y += forceY;
+    this.gravity.strength = Math.sqrt(
+      this.gravity.x * this.gravity.x + this.gravity.y * this.gravity.y
+    );
+
+    planet.pullStrength = Math.max(
+      planet.pullStrength || 0,
+      Math.min(force / this.maxGravityForce, 1)
+    );
+    if (!this.dominantPull || force > this.dominantPull.force) {
+      this.dominantPull = { planet, force };
+    }
   }
 
   // Danger proximity: within 2x the planet radius
@@ -80,13 +109,26 @@ SpaceShip.prototype.collision = function (planet) {
 
 SpaceShip.prototype.gravityFormula = function (planet, distance, influenceRadius) {
   const safeDistance = Math.max(distance, 1);
-  const gravityForce = (G_CONSTANT * planet.mass) / (safeDistance * safeDistance);
   const effectiveInfluenceRadius = influenceRadius || this.gravityInfluenceRadius;
-  const distanceFactor =
-    1 - Math.min(safeDistance / effectiveInfluenceRadius, 1);
-  const scaledForce = gravityForce * Math.max(distanceFactor, 0);
 
-  return Math.min(this.maxGravityForce, scaledForce);
+  // Softened inverse-square law: full Newtonian pull at mid range, with a
+  // softening length near the surface so the force stays finite and playable.
+  const softening = planet.radius * 0.6;
+  const gravityForce =
+    (G_CONSTANT * planet.mass) /
+    (safeDistance * safeDistance + softening * softening);
+
+  // Only fade the force in the outer 30% of the influence radius (smoothstep)
+  // instead of linearly damping it everywhere — the pull stays strong and
+  // noticeable across the whole well, then eases out at the edge.
+  const t = Math.min(safeDistance / effectiveInfluenceRadius, 1);
+  let edgeFade = 1;
+  if (t > 0.7) {
+    const s = (t - 0.7) / 0.3;
+    edgeFade = 1 - s * s * (3 - 2 * s);
+  }
+
+  return Math.min(this.maxGravityForce, gravityForce * edgeFade);
 };
 
 SpaceShip.prototype.update = function () {
@@ -106,10 +148,50 @@ SpaceShip.prototype.update = function () {
     this.trail.shift();
   }
 
-  this.posY += this.dy;
-  this.posX += this.dx;
+  this.updatePullParticles();
+
+  // Velocity is integrated into position exactly once per frame, in move().
   this.angle += this.dAngle;
   this.move();
+};
+
+SpaceShip.prototype.updatePullParticles = function () {
+  for (const p of this.pullParticles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+  }
+  this.pullParticles = this.pullParticles.filter((p) => p.life > 0);
+
+  if (!this.dominantPull) {
+    return;
+  }
+
+  const { planet, force } = this.dominantPull;
+  const strength = Math.min(force / this.maxGravityForce, 1);
+  if (strength < 0.04 || this.pullParticles.length > 50) {
+    return;
+  }
+
+  const pullAngle = Math.atan2(planet.posY - this.posY, planet.posX - this.posX);
+  const perpAngle = pullAngle + Math.PI / 2;
+  const count = strength > 0.45 ? 2 : 1;
+
+  for (let i = 0; i < count; i++) {
+    const sideOffset = (Math.random() - 0.5) * 44;
+    const backOffset = Math.random() * 14;
+    const speed = 2.5 + strength * 4.5;
+
+    this.pullParticles.push({
+      x: this.posX + Math.cos(perpAngle) * sideOffset - Math.cos(pullAngle) * backOffset,
+      y: this.posY + Math.sin(perpAngle) * sideOffset - Math.sin(pullAngle) * backOffset,
+      vx: Math.cos(pullAngle) * speed,
+      vy: Math.sin(pullAngle) * speed,
+      life: 16,
+      maxLife: 16,
+      hue: planet.colorProfile ? planet.colorProfile.hue : 190,
+    });
+  }
 };
 
 SpaceShip.prototype.draw = function () {
@@ -120,6 +202,10 @@ SpaceShip.prototype.draw = function () {
 
   // Draw motion trail
   this.drawTrail();
+
+  // Gravity feedback: streaks pulled toward the planet + net-force arrow
+  this.drawPullParticles();
+  this.drawGravityIndicator();
 
   // Danger proximity ring
   if (this.dangerLevel > 0) {
@@ -133,8 +219,14 @@ SpaceShip.prototype.draw = function () {
     this.ctx.restore();
   }
 
+  // Subtle rumble when the pull is strong — the ship physically feels it
+  const pullRatio = Math.min(this.gravity.strength / this.maxGravityForce, 1);
+  const shake = pullRatio > 0.35 ? (pullRatio - 0.35) * 4 : 0;
+  const shakeX = (Math.random() - 0.5) * 2 * shake;
+  const shakeY = (Math.random() - 0.5) * 2 * shake;
+
   this.ctx.save();
-  this.ctx.translate(this.posX, this.posY);
+  this.ctx.translate(this.posX + shakeX, this.posY + shakeY);
   this.ctx.rotate(this.angle);
 
   if (this.throttle) {
@@ -190,6 +282,80 @@ SpaceShip.prototype.drawTrail = function () {
     this.ctx.arc(t.x, t.y, radius, 0, Math.PI * 2);
     this.ctx.fill();
   }
+
+  this.ctx.restore();
+};
+
+SpaceShip.prototype.drawPullParticles = function () {
+  if (this.pullParticles.length === 0) return;
+
+  this.ctx.save();
+  this.ctx.globalCompositeOperation = "lighter";
+  this.ctx.lineCap = "round";
+
+  for (const p of this.pullParticles) {
+    const fade = p.life / p.maxLife;
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = `hsla(${p.hue}, 100%, 72%, ${fade * 0.55})`;
+    this.ctx.lineWidth = 1.5;
+    this.ctx.moveTo(p.x - p.vx * 2, p.y - p.vy * 2);
+    this.ctx.lineTo(p.x, p.y);
+    this.ctx.stroke();
+  }
+
+  this.ctx.restore();
+};
+
+SpaceShip.prototype.drawGravityIndicator = function () {
+  const strength = this.gravity.strength;
+  if (strength < 0.025) return;
+
+  const magnitude = Math.sqrt(
+    this.gravity.x * this.gravity.x + this.gravity.y * this.gravity.y
+  );
+  if (magnitude === 0) return;
+
+  const nx = this.gravity.x / magnitude;
+  const ny = this.gravity.y / magnitude;
+  const ratio = Math.min(strength / this.maxGravityForce, 1);
+
+  // Cyan when the tug is gentle, shifting to red as it gets dangerous
+  const hue = 190 - ratio * 190;
+  const alpha = 0.35 + ratio * 0.55;
+  const startDist = 20;
+  const length = 22 + ratio * 42;
+  const endX = this.posX + nx * (startDist + length);
+  const endY = this.posY + ny * (startDist + length);
+
+  this.ctx.save();
+  this.ctx.globalCompositeOperation = "lighter";
+  this.ctx.strokeStyle = `hsla(${hue}, 100%, 65%, ${alpha})`;
+  this.ctx.fillStyle = `hsla(${hue}, 100%, 65%, ${alpha})`;
+  this.ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+  this.ctx.shadowBlur = 10;
+  this.ctx.lineWidth = 2 + ratio * 2;
+  this.ctx.lineCap = "round";
+
+  this.ctx.beginPath();
+  this.ctx.moveTo(this.posX + nx * startDist, this.posY + ny * startDist);
+  this.ctx.lineTo(endX, endY);
+  this.ctx.stroke();
+
+  // Arrowhead
+  const headSize = 6 + ratio * 5;
+  const headAngle = Math.atan2(ny, nx);
+  this.ctx.beginPath();
+  this.ctx.moveTo(endX, endY);
+  this.ctx.lineTo(
+    endX - Math.cos(headAngle - 0.45) * headSize,
+    endY - Math.sin(headAngle - 0.45) * headSize
+  );
+  this.ctx.lineTo(
+    endX - Math.cos(headAngle + 0.45) * headSize,
+    endY - Math.sin(headAngle + 0.45) * headSize
+  );
+  this.ctx.closePath();
+  this.ctx.fill();
 
   this.ctx.restore();
 };
@@ -255,6 +421,8 @@ SpaceShip.prototype.reset = function () {
   this.explosion.posY = this.posY;
   this.trail = [];
   this.dangerLevel = 0;
+  this.pullParticles = [];
+  this.resetGravity();
 };
 
 SpaceShip.prototype.drawThrusterBurst = function () {
@@ -315,8 +483,10 @@ SpaceShip.prototype.move = function () {
     return;
   }
 
-  var acceleration = 0.2; // Increased acceleration
-  var deceleration = 0.98; // Deceleration factor for smooth easing
+  var acceleration = 0.4; // Thrust applied along the ship's heading
+  // Space has (almost) no drag: coasting keeps momentum so gravity visibly
+  // bends the flight path and slingshots around planets are possible.
+  var deceleration = 0.99;
   var angleChange = 0.1; // Factor for how quickly the ship turns
 
   // Handling the forward thrust
@@ -354,20 +524,7 @@ SpaceShip.prototype.move = function () {
     this.dy = (this.dy / currentSpeed) * this.maxSpeed;
   }
 
-  // Update the position
+  // Update the position (single integration step per frame)
   this.posX += this.dx;
   this.posY += this.dy;
-
-  // Wrap around logic for screen edges
-  if (this.posX > this.W + 5) {
-    this.posX = -5;
-  } else if (this.posX < -5) {
-    this.posX = this.W + 5;
-  }
-
-  if (this.posY > this.H + 5) {
-    this.posY = -5;
-  } else if (this.posY < -5) {
-    this.posY = this.H + 5;
-  }
 };

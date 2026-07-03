@@ -131,6 +131,7 @@ $(document).ready(() => {
 
   function update() {
     spaceShip.dangerLevel = 0;
+    spaceShip.resetGravity();
     planets.forEach((planet) => spaceShip.collision(planet));
     spaceShip.update();
     if (goal) goal.update(spaceShip);
