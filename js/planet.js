@@ -71,6 +71,8 @@ function generatePlanetColorProfile(density) {
     outline: PLANET_INK,
     glow:    `hsl(${hue}, 55%, 68%)`,
     halo:    (a) => `hsla(${hue}, 45%, 72%, ${a})`,
+    shade:   (a) => `hsla(${hue}, ${sat + 10}%, ${Math.max(lit - 32, 8)}%, ${a})`,
+    gleam:   (a) => `hsla(46, 42%, 89%, ${a})`,
   };
 }
 
@@ -142,19 +144,60 @@ Planet.prototype.draw = function (ctx) {
     drawInkedPlanetRing(ctx, posX, posY, radius, cp, "back");
   }
 
-  // 4. Main body — flat base tone, no neon bloom
+  // 4. Main body — spherical shading: a radial gradient offset toward the
+  // light source models the ball, then cel crescents crisp it up on top.
   ctx.save();
   ctx.beginPath();
-  ctx.fillStyle = cp.body;
+  const lightX = posX - radius * 0.38;
+  const lightY = posY - radius * 0.38;
+  const bodyGrad = ctx.createRadialGradient(
+    lightX, lightY, radius * 0.1,
+    lightX, lightY, radius * 1.6
+  );
+  bodyGrad.addColorStop(0, cp.light);
+  bodyGrad.addColorStop(0.38, cp.body);
+  bodyGrad.addColorStop(0.75, cp.dark);
+  bodyGrad.addColorStop(1, cp.deep);
+  ctx.fillStyle = bodyGrad;
   ctx.arc(posX, posY, radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   // 5. Cel shading — hard-edged lit crescent (upper-left) and a two-step
-  // shadow crescent (lower-right), same flat-tone shading as the ship hull.
-  fillLune(ctx, posX, posY, radius, radius * 0.19, radius * 0.19, radius * 1.08, cp.light, 0.85);
-  fillLune(ctx, posX, posY, radius, -radius * 0.2, -radius * 0.2, radius * 1.04, cp.dark, 0.55);
-  fillLune(ctx, posX, posY, radius, -radius * 0.14, -radius * 0.14, radius * 1.1, cp.deep, 0.7);
+  // shadow crescent (lower-right) layered over the gradient, so the sphere
+  // reads round but keeps the ship's inked-illustration edges.
+  fillLune(ctx, posX, posY, radius, radius * 0.19, radius * 0.19, radius * 1.08, cp.light, 0.45);
+  fillLune(ctx, posX, posY, radius, -radius * 0.2, -radius * 0.2, radius * 1.04, cp.dark, 0.4);
+  fillLune(ctx, posX, posY, radius, -radius * 0.14, -radius * 0.14, radius * 1.1, cp.deep, 0.65);
+
+  // 5b. Limb darkening — soft falloff around the whole edge so the disk
+  // curves away from the viewer instead of ending flat at the outline.
+  ctx.save();
+  ctx.beginPath();
+  const limbGrad = ctx.createRadialGradient(posX, posY, radius * 0.6, posX, posY, radius);
+  limbGrad.addColorStop(0, cp.shade(0));
+  limbGrad.addColorStop(0.75, cp.shade(0.1));
+  limbGrad.addColorStop(1, cp.shade(0.5));
+  ctx.fillStyle = limbGrad;
+  ctx.arc(posX, posY, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 5c. Soft cream bloom on the lit shoulder — a gentle gradient under the
+  // crisp specular dots that pushes the near side of the sphere forward.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(posX, posY, radius, 0, Math.PI * 2);
+  ctx.clip();
+  const bloomX = posX - radius * 0.42;
+  const bloomY = posY - radius * 0.42;
+  const bloomGrad = ctx.createRadialGradient(bloomX, bloomY, 0, bloomX, bloomY, radius * 0.65);
+  bloomGrad.addColorStop(0, cp.gleam(0.32));
+  bloomGrad.addColorStop(0.6, cp.gleam(0.1));
+  bloomGrad.addColorStop(1, cp.gleam(0));
+  ctx.fillStyle = bloomGrad;
+  ctx.fillRect(posX - radius, posY - radius, radius * 2, radius * 2);
+  ctx.restore();
 
   // 6. Ink hatching across the terminator — the technical-illustration
   // shading used all over the spaceship sprite. The hatch band reaches a bit
@@ -256,8 +299,9 @@ function hatchLune(ctx, posX, posY, radius, cutOffX, cutOffY, cutRadius, cp) {
 
 function drawInkedPlanetRing(ctx, posX, posY, radius, cp, half) {
   // In the squashed ellipse space, the lower half (0..PI) is the near side.
-  const start = half === "front" ? 0 : Math.PI;
-  const end = half === "front" ? Math.PI : Math.PI * 2;
+  const isFront = half === "front";
+  const start = isFront ? 0 : Math.PI;
+  const end = isFront ? Math.PI : Math.PI * 2;
   const ringR = radius * 1.5;
   const ringW = radius * 0.2;
 
@@ -265,9 +309,10 @@ function drawInkedPlanetRing(ctx, posX, posY, radius, cp, half) {
   ctx.translate(posX, posY);
   ctx.scale(1, 0.28);
 
-  // Slate metal band
+  // Slate metal band — the far half sits in the planet's shade, so it is
+  // drawn darker and duller than the near half to give the ring depth.
   ctx.beginPath();
-  ctx.strokeStyle = cp.metal;
+  ctx.strokeStyle = isFront ? cp.metal : cp.dark;
   ctx.lineWidth = ringW;
   ctx.arc(0, 0, ringR, start, end);
   ctx.stroke();
@@ -275,7 +320,7 @@ function drawInkedPlanetRing(ctx, posX, posY, radius, cp, half) {
   // Cream highlight stripe along the band, like the ship's pale paneling
   ctx.beginPath();
   ctx.strokeStyle = cp.cream;
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = isFront ? 0.6 : 0.25;
   ctx.lineWidth = ringW * 0.28;
   ctx.arc(0, 0, ringR + ringW * 0.18, start, end);
   ctx.stroke();
@@ -307,12 +352,17 @@ function drawInkedBands(ctx, posX, posY, radius, cp) {
   ctx.arc(posX, posY, radius * 0.96, 0, Math.PI * 2);
   ctx.clip();
 
+  // Latitude bands bow downward like curves on a tilted globe, so the
+  // stripes wrap around the sphere instead of lying flat across the disk.
   const bands = 5;
   const bandFullH = (radius * 2) / bands;
+  const bow = (t) => radius * (0.08 + t * 0.22);
   for (let i = 0; i < bands; i++) {
     const t = (i + 0.5) / bands;
     const y = posY - radius + t * radius * 2;
     const bandH = bandFullH * 0.55;
+    const yTop = y - bandH / 2;
+    const yBot = y + bandH / 2;
     if (i % 2 === 0) {
       ctx.globalAlpha = 0.3;
       ctx.fillStyle = cp.light;
@@ -320,15 +370,21 @@ function drawInkedBands(ctx, posX, posY, radius, cp) {
       ctx.globalAlpha = 0.35;
       ctx.fillStyle = cp.dark;
     }
-    ctx.fillRect(posX - radius, y - bandH / 2, radius * 2, bandH);
+    ctx.beginPath();
+    ctx.moveTo(posX - radius, yTop);
+    ctx.quadraticCurveTo(posX, yTop + bow(t), posX + radius, yTop);
+    ctx.lineTo(posX + radius, yBot);
+    ctx.quadraticCurveTo(posX, yBot + bow(t), posX - radius, yBot);
+    ctx.closePath();
+    ctx.fill();
 
     // Thin ink separator under each band — panel-line work like the ship's
     ctx.globalAlpha = 0.4;
     ctx.strokeStyle = cp.ink;
     ctx.lineWidth = Math.max(radius * 0.02, 1);
     ctx.beginPath();
-    ctx.moveTo(posX - radius, y + bandH / 2);
-    ctx.lineTo(posX + radius, y + bandH / 2);
+    ctx.moveTo(posX - radius, yBot);
+    ctx.quadraticCurveTo(posX, yBot + bow(t), posX + radius, yBot);
     ctx.stroke();
   }
   ctx.restore();
@@ -358,6 +414,14 @@ function drawInkedCraters(ctx, posX, posY, radius, cp) {
     ctx.globalAlpha = 0.55;
     ctx.fillStyle = cp.deep;
     ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bowl relief: refill the floor offset toward the light, leaving a deep
+    // inner-shadow crescent on the wall facing the light source.
+    ctx.beginPath();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = cp.dark;
+    ctx.arc(cx + cr * 0.22, cy + cr * 0.22, cr * 0.72, 0, Math.PI * 2);
     ctx.fill();
 
     // Full ink outline
@@ -397,8 +461,18 @@ function drawInkedPlates(ctx, posX, posY, radius, cp) {
     const px = posX + p.dx * radius;
     const py = posY + p.dy * radius;
 
+    // Drop shadow offset away from the light lifts the plate off the surface
     ctx.beginPath();
     ctx.globalAlpha = 0.35;
+    ctx.fillStyle = cp.deep;
+    ctx.ellipse(
+      px + radius * 0.035, py + radius * 0.035,
+      p.rx * radius, p.ry * radius, p.rot, 0, Math.PI * 2
+    );
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.globalAlpha = 0.4;
     ctx.fillStyle = cp.light;
     ctx.ellipse(px, py, p.rx * radius, p.ry * radius, p.rot, 0, Math.PI * 2);
     ctx.fill();
